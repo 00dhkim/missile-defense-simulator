@@ -34,6 +34,7 @@ class Missile(Turtlable):
         self.time = 0.0
         self.state = ''
 
+    # 시간에 따른 x, y 좌표 구하기
     def calc_pos(self, t):
         x = self.pos_x_over_time(self.v_0, self.theta, t)
         y = self.pos_y_over_time(self.v_0, self.theta, t)
@@ -60,9 +61,11 @@ class AttackMissile(Missile):
         # impacted: 목표 지점에 착탄함
         # intercepted: 중간에 요격됨
 
+    # 시간에 따른 x 좌표 계산
     def pos_x_over_time(self, v_0, theta, t):
         return v_0 * math.cos(theta) * t
 
+    # 시간에 따른 y 좌표 계산
     def pos_y_over_time(self, v_0, theta, t):
         return -0.5 * 9.8 * t * t + v_0 * math.sin(theta) * t
 
@@ -124,19 +127,50 @@ class DefenseMissile(Missile):
         # intercept_passed: 요격 실패 후 지나침
         # impacted: 땅에 착탄
 
+    # 시간에 따른 x 좌표 계산
     def pos_x_over_time(self, v_0, theta, t):
+        # theta는 왼쪽 각도를 의미함, 발사가 왼쪽으로 되게끔 기본 세팅
         return self.init_pos.x - v_0 * math.cos(theta) * t
 
+    # 시간에 따른 y 좌표 계산
     def pos_y_over_time(self, v_0, theta, t):
         return -0.5 * 9.8 * t * t + v_0 * math.sin(theta) * t
 
+    # 처음 1회만 실행, 1초 후에 발사되는 경우
+    # for case 2.
     def launch_init(self, v_a, theta_a):
         # 공격미사일의 초기속도와 초기발사각을 받아옴
         self.pos = Pos(self.init_pos.x, self.init_pos.y)
-        self.theta = math.atan(9.8 / 2 / v_a / math.cos(theta_a))
-        self.v_0 = v_a * math.cos(theta_a) / math.cos(self.theta)
+        self.v_0 = v_a # 공격미사일의 초기속력과 동일하다고 가정.
+
+        A = v_a**2-40*v_a
+        B = v_a ** 2 * math.sin(theta_a) - v_a * 9.8 / 2
+        C = -v_a * 9.8 / 2 * math.cos(theta_a) - 40 * v_a * math.sin(theta_a) + 40 * 9.8
+
+        print(f"A: {A}\nB: {B}\nC: {C}")
+
+
+        print(f"theta_1: {((A-(A**2+B**2-C**2)**0.5)/(B+C))}")
+        print(f"theta_2: {((A+(A**2+B**2-C**2)**0.5)/(B+C))}")
+
+        # self.theta = 2 * math.atan((A+(A**2+B**2-C**2)**0.5)/(B+C))
+        self.theta = 2 * math.atan((A-(A**2+B**2-C**2)**0.5)/(B+C))
+        # 둘 중에 뭐가 맞는지 모르겠음. 둘 다 맞을 수도 있음.
+
         self.state = 'standby'
 
+    '''
+    # 처음 1회만 실행, 공격미사일과 동시에 발사
+    # for case 1.
+    def launch_init(self, v_a, theta_a):
+        # 공격미사일의 초기속도와 초기발사각을 받아옴
+        self.pos = Pos(self.init_pos.x, self.init_pos.y)
+        self.theta = theta_a
+        self.v_0 = v_a
+        self.state = 'standby'
+    '''
+
+    # 0.1초마다 실행
     def launching(self, time, a_pos_x, a_pos_y):
         self.time = time
         self.state = 'flying'
@@ -158,16 +192,37 @@ class DefenseMissile(Missile):
 
 
 if __name__ == '__main__':
-    am = AttackMissile(0,0)
-    dm = DefenseMissile(40, 0)
+    am = AttackMissile(0,0) # (0, 0) 좌표에서 발사
+    dm = DefenseMissile(40, 0) # (40, 0) 좌표에 방어미사일 위치
     time = 0.0
 
-    am.launch_init_by_distance(100)
-    dm.launch_init(am.v_0, am.theta)
+    am.launch_init_by_distance(100) # 착탄위치 (100, 0)
+    print(f"am.v_0: {am.v_0}, am.theta: {am.theta}")
+    dm.launch_init(am.v_0, am.theta) # 요격할 대상: am
 
     # ------------------------------------------------------
-    # 공격미사일과 방어미사일이 동시에 날아가는 시뮬레이션
+    # case 1. -> 결과로그 및 비행 궤적 성공적
+    # 공격미사일과 방어미사일이 동시에 날아가되, 방어미사일이 1초 기다리지 않고 공격미사일과 함께 발사
     '''
+    while (am.state == 'standby' or am.state == 'flying') and \
+            (dm.state == 'standby' or dm.state == 'flying'):
+
+        am.launching(time)
+        dm.launching(time, am.pos.x, am.pos.y)
+
+        time += 0.01
+
+        input()
+
+    am.launch_end()
+    dm.launch_end()
+    '''
+    # ------------------------------------------------------
+
+    # ------------------------------------------------------
+    # case 2.
+    # 공격미사일과 방어미사일이 동시에 날아가는 시뮬레이션
+    # '''
     while (am.state == 'standby' or am.state == 'flying') and \
             (dm.state == 'standby' or dm.state == 'flying'):
 
@@ -175,13 +230,13 @@ if __name__ == '__main__':
         if time >= 1.0:
             dm.launching(time, am.pos.x, am.pos.y)
 
-        time += 0.1
+        time += 0.01
 
         input()
 
     am.launch_end()
     dm.launch_end()
-    '''
+    # '''
     # ------------------------------------------------------
 
     # ------------------------------------------------------
